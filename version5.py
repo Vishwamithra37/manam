@@ -341,10 +341,10 @@ def makecomment():
         dac.insert_one(me)
 
 
-        dab=db["feed"]
+        dab=db["solutions"]
         dac=dab[fire["user"]["state"]]
 
-        dac.update_one({"_id":ObjectId(me["q"]["hash"])},{"$set":{"s.comments":"yes"}})
+        dac.update_one({"_id":ObjectId(me["s"]["hash"])},{"$set":{"yes"}})
 
         return {"OK":"Operation successfull"}
 
@@ -352,18 +352,7 @@ def makecomment():
         return {"error":"SOmething went wrrrroooong"}
 
 
-@app.route('/api/makereply',methods=['POST'])
-def makecommentreply():
-    data=flask.request.data
-    data=flask.request.get_json()
 
-    try:
-
-
-
-
-
-    except:
         
         
         
