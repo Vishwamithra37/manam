@@ -1,15 +1,15 @@
 #This works fine
-import json
-import rsa
+
 from nested_dictionaries import NestedDictionaries as nd
 import flask
 import pymongo as pym
 from hashlib import sha256,md5
-from pyaes import AESModeOfOperationCTR
 from Crypto.Random import get_random_bytes
 from secrets import token_hex
 import time
 from bson.objectid import ObjectId
+
+
 #EVERYTHING IS UTF-8
 
 #######################--3-Level Dictionary concater and decryptor################################################
@@ -31,12 +31,13 @@ def gav(nested_dictionary): #concates all the values in a two nested dictionary
 #########################Initialization of asserting variables##################################
 gender=["male","female","other","Apache attack helicopter"] #Add in genders here
 occupation=["","",""]                                       #Add in occupations here
-accemails=["gmail","yahoo","rocketmail"]                    #Add in acceptable email domains
+accemails=["gmail","yahoo","rocketmail","outlook"]                    #Add in acceptable email domains
 states=["Telangana","Andhra Pradesh"]
 countries=["India","Sweden"]
 #########################Initialization of asserting variables##################################
 
 app=flask.Flask(__name__)
+
 db=pym.MongoClient("mongodb://localhost:27017/") # connecting to the local Mongodb
 app.config['MAX_CONTENT_LENGTH'] = 13 * 1000 * 1000
 
@@ -57,9 +58,9 @@ def register():
                 assert len(data["user"]["politicalleaning"])<15 and type(data["user"]["politicalleaning"])==str                      #Defending against stupid attacks
                 assert len(data["user"]["supporting party"]["name"])<50 and type(data["user"]["supporting party"]["name"])==str              #Defending against stupid attacks
                 assert int(data["user"]["supporting party"]["chance"])<=100 and type(data["user"]["supporting party"]["chance"])==str            #Defending against stupid attacks 
-                assert len(data["user"]["Election circles"])<=10 and type(data["user"]["Election circles"])==list                                   #Defending against stupid attacks
-                for i in data["user"]["Election circles"]:assert type(i)==str
-                assert len(data["user"]["phone"])<=10 and len(data["user"]["phone"])>8 and type(data["user"]["phone"])==int #Defending against stupid attacks
+                assert len(data["user"]["election circles"])<=10 and type(data["user"]["election circles"])==list                                   #Defending against stupid attacks
+                for i in data["user"]["election circles"]:assert type(i)==str
+                assert len(data["user"]["phone"])<=10 and len(data["user"]["phone"])>8 and type(data["user"]["phone"])==str #Defending against stupid attacks
                 assert type(data["user"]["state"])==str
                 assert type(data["user"]["nation"])==str and len(data["user"]["nation"])<=25
                 assert type(data["user"]["name"])==str and 3<len(data["user"]["name"])<20 
@@ -68,10 +69,43 @@ def register():
                 return {"Error":"Error in assertions"}   
         
         
+
+
+        try:
+            x=data["user"]["email"].split("@")#Seperating the username from domain
+            x1=x[1].split(".")                #seperating the domain and .
+            name=x[0]                         #Assingning the starting name to the name
+            edomain=x1[0]                     #Assigning the domain to the domain
+            assert len(name.split('+'))==1    ###Defending against idioittto
+             
+            dab=db["users"]          #This is the users data database
+            dac=dab[data["user"]["state"]]                     #This is a collection
+            assert dac.find_one({"user.email":data["user"]["email"]})==None          #Checking for existing users
+        except:
+            return {"Error":"User already exists"}
         
         
         #####################Check the content here################################################# 
+        dab=db["states_list"]
+        dac=dab["list"]
+
+        assert dac.find_one({"state":data["user"]["state"]},{"_id":0,"state":1})!=None
         
+
+        
+        
+        dab=db["ecs"]
+        dac=dab[data["user"]["state"]]
+        
+
+        for i in data["user"]["election circles"]:
+            fire=dac.find_one({"ec":i},{"_id":0,"ec":1})
+            if fire==None:
+                return {"error":"Election circle not supported"}
+            
+
+
+
         #################Expected contents(Add Here to upgrade)#####################################################    
         me=nd()
         me["user"]["email"]=data["user"]["email"]                                          #1
@@ -91,11 +125,9 @@ def register():
         #################Expected contents(Add Here to upgrade)#####################################################          
 
                 
-        x=me["user"]["email"].split("@")        #Seperating the username from domain
-        x1=x[1].split(".")                      #seperating the domain and .
+
         
-        name=x[0]                #Assingning the starting name to the name
-        edomain=x1[0]            #Assigning the domain to the domain
+
         
         assert edomain in accemails   #Hopefully he has email which is verified    
         
@@ -107,10 +139,7 @@ def register():
         dac=dab[me["user"]["state"]]                     #This is a collection
         
         
-        try:
-            assert dac.find_one({"user.email":data["user"]["email"]})==None          #Checking for existing users
-        except:
-            return {"Error":"User already exists"}
+ 
         
         dac.insert_one(me)                   #Inserts the email and password into the required collection
         return {"Operation Status":"Successful"}
@@ -142,7 +171,10 @@ def tokens():
         dac=dab[data["user"]["state"]]          #This is a collection
         
         
-        fire=dac.find_one({"user.email":data["user"]["email"]},{"_id":0,"user.password":1,"user.email":1,"user.state":1,"user.election circles":1,"user.nation":1,"user.name":1})                            
+        fire=dac.find_one({"user.email":data["user"]["email"]},
+                          {"_id":0,"user.password":1,"user.email":1,
+                          "user.state":1,"user.election circles":1,
+                          "user.nation":1,"user.name":1})                            
       
         if fire==None:
             return {"Result":"NO USER FOUND"}
@@ -151,7 +183,7 @@ def tokens():
                 assert fire["user"]["password"]==tes.hexdigest() #Fire dictionary stores the user data   
                 a=token_hex(4)
                 b=token_hex(4)
-                c=+str(a)+str(round(time.time()))+str(b)
+                c=str(a)+str(round(time.time()))+str(b)
                 
                 me=nd()
                 me["auth"]["token"]=c                         #The token that will be linked
@@ -219,9 +251,14 @@ def makepost():
                 me["q"]["time_stamp"]=str(round(time.time()))
                 me["q"]["followers"]=1
                 me["q"]["author"]=fire["user"]["name"]
+                me["q"]["state"]=fire["user"]["state"]
+                me["q"]["nation"]=fire["user"]["nation"]
+                me["q"]["noofanswer"]=0
                 me["auth"]["users"]=[fire["user"]["email"],"mithravishwa37@gmail.com"]      #Add the ability to add security staff                                          
-                me["auth"]["m_user"]=fire["user"]["email"]              
+                me["auth"]["m_user"]=fire["user"]["email"]   
+
                 
+
                 dab=db["Feed"]
                 dac=dab[fire["user"]["state"]]
                 
@@ -234,7 +271,7 @@ def makepost():
   
 
 @app.route('/api/makesolution',methods=['POST'])
-def makecomment():   
+def makesolution():   
     data=flask.request.data
     data=flask.request.get_json()
     
@@ -242,27 +279,44 @@ def makecomment():
         assert type(data["auth"]["token"])==str
         assert type(data["s"]["solution"])==str
         assert type(data["q"]["hash"])==str
-        assert type(data["auth"]["state"])==str 
-        assert type(data["auth"]["nation"])==str 
-        assert type(data["auth"]["election circles"])==str
+        assert type(data["auth"]["state"])==str
     except:
-        return{"error":"Honey, stop trying and go to mama. *-* "}
+
+        a=flask.make_response({"error":"Honey, stop trying and go to mama. *-* "})
+        a.headers["Server"]="node.js"
+ 
+        return a
+        
         ######################Veriying the token###########################################
     try:
              
         dab=db["Tokens"]
-        dac=dab[data["user"]["state"]]
+        dac=dab[data["auth"]["state"]]
                           
         fire=dac.find_one({"auth.token":data["auth"]["token"]},{"_id":0,"user.nation":1,"user.email":1,"user.state":1,"user.election circles":1,"user.name":1})                                                                                                                          
         if fire==None:
-            return {"Error":"User Does not exist"}
+            a=flask.make_response({"Error":"User Does not exist"})
+            a.headers["Server"]="node.js"
+ 
+            return a
+
+            
         else:
-            assert data["user"]["state"] == fire["user"]["state"]
-            assert data["auth"]["nation"]== fire["user"]["nation"]
-            assert data["auth"]["election circles"] in fire["user"]["election circles"]
+            dab=db["feed"]
+            dac=dab[fire["user"]["state"]]
+
+            fire2=dac.find_one({ObjectId(data["q"]["hash"])},
+                               {"_id":0,"q.state":1,"q.election circles":1,"q.nation":1})                                                        
+
+
+
+            assert fire2["q"]["state"] == fire["user"]["state"]
+            assert fire2["q"]["nation"]== fire["user"]["nation"]
+            assert fire2["q"]["election circles"] in fire["user"]["election circles"]
     ######################Veriying the token###########################################
+
             dab=db["solutions"]
-            dac=dab[data["auth"]["state"]]
+            dac=dab[fire["user"]["state"]]
 
             assert dac.find_one({"q.hash":data["q"]["hash"],"auth.m_user":fire["user"]["email"]})==None
 
@@ -273,14 +327,33 @@ def makecomment():
             me["s"]["time_stamp"]=str(round(time.time()))
             me["s"]["upvotes"]=0
             me["s"]["downvotes"]=0
+            me["s"]["election circles"]=fire2["q"]["election circles"]
+            me["s"]["state"]=fire2["q"]["state"]
+            me["s"]["nation"]=fire2["q"]["nation"]
             me["s"]["comments"]="no"
             me["auth"]["emails"]=["mithravishwa37@gmail.com",fire["user"]["email"]]
                        
             dac.insert_one(me)
+          
+            dab=db["feed"]
+            dac=dab[fire["user"]["state"]]
 
-            return {"ok":"Done","s_hash":str(me["_id"])}
+            dac.update_one({"_id":ObjectId(me["q"]["hash"])},{"$inc":{"q.noofanswers":1}})###
+
+            a=flask.make_response({"ok":"Done","s_hash":str(me["_id"])})
+            a.headers["Server"]="node.js"
+ 
+            return a
+           
+
+            
     except:
-        return {"error":"Already wrote a solution"}
+
+        a=flask.make_response({"error":"Already wrote a solution"})
+        a.headers["Server"]="node.js"
+ 
+        return a
+        
       
 
 
@@ -300,16 +373,18 @@ def makecomment():
         assert type(data["auth"]["token"])==str
         assert type(data["user"]["comment"])==str
         assert type(data["s"]["hash"])==str
-        assert type(data["auth"]["state"])==str 
-        assert type(data["auth"]["nation"])==str 
-        assert type(data["auth"]["election circles"])==str
+        assert type(data["auth"]["state"])==str
     except:
+        a=flask.make_response({"error":"Check if every shit is the right data type"})
+        a.headers["Server"]="node.js"
+ 
+        return a
 
-        return {"error":"Check if every shit is the right data type"}
+
         ######################Veriying the token###########################################
     try: 
         dab=db["Tokens"]
-        dac=dab[data["user"]["state"]]
+        dac=dab[data["auth"]["state"]]
                           
         fire=dac.find_one({"auth.token":data["auth"]["token"]},
                           {"_id":0,"user.nation":1,"user.email":1,
@@ -319,11 +394,23 @@ def makecomment():
             return {"Error":"User Does not exist"}
         else:
             ######################Veriying the token###########################################
-            assert data["user"]["state"] == fire["user"]["state"]
-            assert data["auth"]["nation"]== fire["user"]["nation"]
-            assert data["auth"]["election circles"] in fire["user"]["election circles"]
+            dab=db["solutions"]
+            dac=dab[fire["user"]["state"]]
+
+            fire2=dac.find_one({ObjectId(data["s"]["hash"])},
+                               {"_id":0,"s.state":1,"s.election circles":1,"s.nation":1})                                                        
+            
+            assert fire2["s"]["state"] == fire["user"]["state"]
+            assert fire2["s"]["nation"]== fire["user"]["nation"]
+            assert fire2["s"]["election circles"] in fire["user"]["election circles"]
+
     except:  
-        return {"error":"Some ridiculous error"}
+
+        a=flask.make_response({"error":"Some ridiculous error"})
+        a.headers["Server"]="node.js"
+ 
+        return a
+        
 
     try:
         dab=db["comments"]
@@ -336,21 +423,32 @@ def makecomment():
         me["c"]["time_stamp"]=str(round(time.time()))
         me["c"]["upvotes"]=0
         me["c"]["downvotes"]=0
+        me["c"]["state"]=fire2["s"]["state"]
+        me["c"]["election circles"]=fire2["s"]["election circles"]
+        me["c"]["nation"]=fire2["s"]["election circles"]
         me["auth"]["emails"]=["mithravishwa37@gmail.com",fire["user"]["email"]]
         me["c"]["comments"]="no"
         
         dac.insert_one(me)
 
 
-        dab=db["feed"]
+        dab=db["solutions"]
         dac=dab[fire["user"]["state"]]
 
-        dac.update_one({"_id":ObjectId(me["q"]["hash"])},{"$set":{"s.comments":"yes"}})
+        dac.update_one({"_id":ObjectId(me["s"]["hash"])},{"$set":{"s.comments":"yes"}})
 
-        return {"OK":"Operation successfull"}
+        a=flask.make_response({"OK":"Operation successfull"})
+        a.headers["Server"]="node.js"
+ 
+        return a
 
-    except:         
-        return {"error":"SOmething went wrrrroooong"}
+        
+
+    except:   
+        a=flask.make_response({"error":"SOmething went wrrrroooong"})
+        a.headers["Server"]="node.js"
+ 
+        return a
 
 
 
@@ -363,18 +461,18 @@ def makecommentreply():
         assert type(data["auth"]["token"])==str
         assert type(data["user"]["comment"])==str
         assert type(data["c"]["hash"])==str
-        assert type(data["auth"]["state"])==str 
-        assert type(data["auth"]["nation"])==str 
-        assert type(data["auth"]["election circles"])==str
-
+        assert type(data["auth"]["state"])==str
     except:
-
-        return {"error":"Check if every shit is the right data type"}
+        a=flask.make_response({"error":"Check if every shit is the right data type"})
+        a.headers["Server"]="node.js"
+ 
+        return a
+        
     
         ######################Veriying the token###########################################
     try: 
         dab=db["Tokens"]
-        dac=dab[data["user"]["state"]]
+        dac=dab[data["auth"]["state"]]
                           
         
         fire=dac.find_one({"auth.token":data["auth"]["token"]},
@@ -383,25 +481,161 @@ def makecommentreply():
                           "user.name":1})                                                                                                                          
         
         if fire==None:
-            return {"Error":"User Does not exist"}
+            a=flask.make_response({"Error":"User Does not exist"})
+            a.headers["Server"]="node.js"
+ 
+            return a
+
+           
         else:
     ######################Veriying the token###########################################
-            assert data["user"]["state"] == fire["user"]["state"]
-            assert data["auth"]["nation"]== fire["user"]["nation"]
-            assert data["auth"]["election circles"] in fire["user"]["election circles"]
-    
+            dab=db["comments"]
+            dac=dab[fire["user"]["state"]]
+            fire2=dac.find_one({ObjectId(data["c"]["hash"])},
+                               {"_id":0,"c.state":1,"c.election circles":1,"c.nation":1})
+            assert fire2["c"]["state"] == fire["user"]["state"]
+            assert fire2["c"]["nation"]== fire["user"]["nation"]
+            assert fire2["c"]["election circles"] in fire["user"]["election circles"]
+           
+            me=nd()
+            me["c"]["hash"]=data["c"]["hash"]
+            me["c"]["comment"]=data["user"]["comment"]
+            me["c"]["time_stamp"]=str(round(time.time()))
+            me["c"]["upvotes"]=0
+            me["c"]["downvotes"]=0
+            me["c"]["comments"]="no"
+            me["c"]["state"]=fire2["c"]['state']
+            me["c"]["election circles"]=fire2["c"]["election circles"]
+            me["c"]["nation"]=fire2["c"]["nation"]
+            me["auth"]["emails"]=["mithravishwa37@gmail.com",fire["user"]["email"]]
+
+            dac.insert_one(me)
+               
+            dac.update_one({"_id":ObjectId(data["c"]["hash"])},{"$set":{"c.comments":"yes"}})  
+
+            a=flask.make_response({"ok":"Comment posted"})
+            a.headers["Server"]="node.js"
+ 
+            return a
     except:
+        a=flask.make_response({"error":"Probably not of the same region?"})
+        a.headers["Server"]="node.js"
+        return a
+            
+#########################From here we set on on editing the adventures###################################
+#########################################################################################################
         
+@app.route('/api/feed',methods=['POST'])
+def feeder():   
+    data=flask.request.data
+    data=flask.request.get_json()
+            
+    try:
+        assert type(data["auth"]["token"])==str
+        assert type(data["auth"]["state"])==str 
+        assert type(data["user"]["election circles"])==str
+    except:
+        a=flask.make_response({"error":"Check if every shit is the right data type"})
+        a.headers["Server"]="node.js"
+        return a
         
+
+    try: 
+        dab=db["Tokens"]
+        dac=dab[data["user"]["state"]]
+                          
         
+        fire=dac.find_one({"auth.token":data["auth"]["token"]},
+                          {"_id":0,"user.nation":1,"user.email":1,
+                          "user.state":1,"user.election circles":1,
+                          "user.name":1})  
+    
+        assert data["auth"]["state"]==fire["user"]["state"]
+        assert data["user"]["election circles"] in fire["user"]["election circles"]  
+
+        if fire==None:
+            a=flask.make_response({"error":"Oolalalala looo"})
+            a.headers["Server"]="node.js"
+            return a
+            
+        else:
+            dab=db["feed"]
+            dac=dab[fire["user"]["state"]]
+                 
+             ####Change this as more questions come into the feed, to 
+             ####make it promote new questions then most followed, then    
+            fire2=dac.find({"election circles":data["user"]["election circles"]},
+                          {"_id":1,"q.m_question":1,"q.d_question":1}).limit(4)
+            
+            que=nd()
+            count=0
+            
+            for ques in fire2:
+                count=count+1
+                que["question_"+str(count)]["hash"]=str(ques["_id"])
+                que["question_"+str(count)]["m_question"]=ques["q"]["m_question"]
+                que["question_"+str(count)]["d_question"]=ques["q"]["d_question"]
+
+            a=flask.make_response(que)
+            a.headers["Server"]="node.js"
+
+
+            return a    
+    except:
+        a=flask.make_response({"error":"Oolalalala looo"})
+        a.headers["Server"]="node.js"
+        return a
         
-    
-    
-    
-    
-    
-    
-    
+
+@app.route('/api/question/<state_hash_ec>',methods=['GET'])
+def question(state_hash_ec):
+    try:
+        assert type(state_hash_ec) == str  #Use compound index
+        s=state_hash.split('_')
+        assert len(s)==3 
+
+        dab=db["feed"]
+        dac=dab[s[0]]
+
+        fire=dac.find_one({"_id":ObjectId(s[1]),"election circles":s[2]},
+                        {"_id":0,"q.m_question":1,"q.d_question":1,
+                        "q.author":1,"q.time_stamp":1,"q.followers":1,"q.noofanswers":1,
+                        "q.state":1,"q.election circles":1})
+
+        me=nd()
+        me["question"]=fire
+        
+        dab=db["solutions"]
+        dac=dab[s[0]]
+
+        fire=dac.find({"election circles":s[2],"q.hash":s[1]},
+                    {"_id":1,"s.solution":1,"s.upvotes":1,"s.downvotes":1,
+                    "s.author":1,"s.comments":1,"s.time_stamp":1}).limit(5)
+        count=0
+        for i in fire:
+         count=count+1
+         me["solution_"+str(count)]=i
+         if me["solution_"+str(count)]!=None:
+            me["solution_"+str(count)]["_id"]=str(me["solution_"+str(count)]["_id"])
+            me["solution_"+str(count)]["s"]["hash"]=me["solution_"+str(count)]["_id"]
+            del me["solution_"+str(count)]["_id"]
+
+        a=flask.make_response(me)
+        a.headers["Server"]="node.js"
+         
+        return a
+
+    except:
+        a=flask.make_response({"error":"Oolalalala looo"})
+        a.headers["Server"]="node.js"
+        return a
+
+
+
+#Databases required still:
+#  1)Upvotes downvotes user ids     #Hidden and only visible to us.
+#  2)Followers                      #Hidden and only visible to us and the users
+#  3)Meta in user profile           Visble to users  
     
     
         

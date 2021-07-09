@@ -1,16 +1,14 @@
 #This works fine
-import json
-from pymongo import client_options
-import rsa
 from nested_dictionaries import NestedDictionaries as nd
 import flask
 import pymongo as pym
 from hashlib import sha256,md5
-from pyaes import AESModeOfOperationCTR
 from Crypto.Random import get_random_bytes
 from secrets import token_hex
 import time
 from bson.objectid import ObjectId
+
+
 #EVERYTHING IS UTF-8
 
 #######################--3-Level Dictionary concater and decryptor################################################
@@ -32,12 +30,13 @@ def gav(nested_dictionary): #concates all the values in a two nested dictionary
 #########################Initialization of asserting variables##################################
 gender=["male","female","other","Apache attack helicopter"] #Add in genders here
 occupation=["","",""]                                       #Add in occupations here
-accemails=["gmail","yahoo","rocketmail"]                    #Add in acceptable email domains
+accemails=["gmail","yahoo","rocketmail","outlook"]                    #Add in acceptable email domains
 states=["Telangana","Andhra Pradesh"]
 countries=["India","Sweden"]
 #########################Initialization of asserting variables##################################
 
 app=flask.Flask(__name__)
+
 db=pym.MongoClient("mongodb://localhost:27017/") # connecting to the local Mongodb
 app.config['MAX_CONTENT_LENGTH'] = 13 * 1000 * 1000
 
@@ -46,19 +45,15 @@ def register():
     
     try:        
         try:
-            try:
                 data=flask.request.data
                 data=flask.request.get_json() # Simply puts the JSON_data which I got into the data var
-            except:  
+                
         #####################Check the content here#################################################        
                 assert int((data["user"]["age"])) <= 120 and type(data["user"]["age"])==str                              #Defending against stupid attacks     
                 assert data["user"]["sex"] in gender and type(data["user"]["sex"])==str 
                 assert len(data["user"]["password"])==19 and type(data["user"]["password"])==str#Defending against stupid attacks
                 assert len(data["user"]["email"])<40 and type(data["user"]["email"])==str                                 #Defending against stupid attacks
-                assert len(data["user"]["occupation"])<20 and type(data["user"]["occupation"])==str                             #Defending against stupid attacks
-                assert len(data["user"]["politicalleaning"])<15 and type(data["user"]["politicalleaning"])==str                      #Defending against stupid attacks
-                assert len(data["user"]["supporting party"]["name"])<50 and type(data["user"]["supporting party"]["name"])==str              #Defending against stupid attacks
-                assert int(data["user"]["supporting party"]["chance"])<=100 and type(data["user"]["supporting party"]["chance"])==str            #Defending against stupid attacks 
+                assert len(data["user"]["occupation"])<20 and type(data["user"]["occupation"])==str                             #Defending against stupid attacks 
                 assert len(data["user"]["election circles"])<=10 and type(data["user"]["election circles"])==list                                   #Defending against stupid attacks
                 for i in data["user"]["election circles"]:assert type(i)==str
                 assert len(data["user"]["phone"])<=10 and len(data["user"]["phone"])>8 and type(data["user"]["phone"])==str #Defending against stupid attacks
@@ -66,6 +61,9 @@ def register():
                 assert type(data["user"]["nation"])==str and len(data["user"]["nation"])<=25
                 assert type(data["user"]["name"])==str and 3<len(data["user"]["name"])<20 
                 assert data["user"]["nation"] in countries ###Change to database
+                assert data["user"]["dateofbirth"]==str and len((data["user"]["dateofbirth"]).split('/'))==3
+
+
         except:
                 return {"Error":"Error in assertions"}   
         
@@ -73,6 +71,13 @@ def register():
 
 
         try:
+            x=data["user"]["email"].split("@")#Seperating the username from domain
+            x1=x[1].split(".")                #seperating the domain and .
+            name=x[0]                         #Assingning the starting name to the name
+            edomain=x1[0]                     #Assigning the domain to the domain
+            assert len(name.split('+'))==1    ###Defending against idioittto
+            assert len(name.split('.'))==1    ###Defending against idioittto
+             
             dab=db["users"]          #This is the users data database
             dac=dab[data["user"]["state"]]                     #This is a collection
             assert dac.find_one({"user.email":data["user"]["email"]})==None          #Checking for existing users
@@ -81,7 +86,29 @@ def register():
         
         
         #####################Check the content here################################################# 
+        dab=db["states_list"]
+        dac=dab["list"]
+
+        assert dac.find_one({"state":data["user"]["state"]},{"_id":0,"state":1})!=None
         
+
+        
+        
+        dab=db["ecs"]
+        dac=dab[data["user"]["state"]]
+        
+
+        for i in data["user"]["election circles"]:
+            fire=dac.find_one({"ec":i},{"_id":0,"ec":1})
+            if fire==None:
+                return {"error":"Election circle not supported"}
+            
+
+        dob=(data["user"]["dateofbirth"]).split(3)
+        assert int(dob[0])<=31
+        assert int(dob[1])<=12
+        assert (((time.localtime(time.time())).tm_year)-100)<int(dob[2])<(((time.localtime(time.time())).tm_year)-12) 
+
         #################Expected contents(Add Here to upgrade)#####################################################    
         me=nd()
         me["user"]["email"]=data["user"]["email"]                                          #1
@@ -89,23 +116,19 @@ def register():
         me["user"]["age"]=data["user"]["age"]                                              #3
         me["user"]["sex"]=data["user"]["sex"]                                              #4
         me["user"]["occupation"]=data["user"]["occupation"]                                #5 
-        me["user"]["Political Leaning"]=data["user"]["politicalleaning"]                   #6
-        me["user"]["supporting party"]["name"]=data["user"]["supporting party"]["name"]    #7
-        me["user"]["supporting party"]["chance"]=data["user"]["supporting party"]["chance"]#8
-        me["user"]["election circles"]=data["user"]["election circles"]                    #9
-        me["user"]["state"]=data["user"]["state"]                                          #10
-        me["user"]["phone"]=data["user"]["phone"]                                          #11
-        me["user"]["nation"]=data["user"]["nation"]                                        #12
-        me["user"]["name"]=data["user"]["name"]                                            #13
+        me["user"]["election circles"]=data["user"]["election circles"]                    #6
+        me["user"]["state"]=data["user"]["state"]                                          #7
+        me["user"]["phone"]=data["user"]["phone"]                                          #8
+        me["user"]["nation"]=data["user"]["nation"]                                        #9
+        me["user"]["name"]=data["user"]["name"]                                            #10
+        me["user"]["dob"]=dob                                                              #11
         
         #################Expected contents(Add Here to upgrade)#####################################################          
 
                 
-        x=me["user"]["email"].split("@")        #Seperating the username from domain
-        x1=x[1].split(".")                      #seperating the domain and .
+
         
-        name=x[0]                #Assingning the starting name to the name
-        edomain=x1[0]            #Assigning the domain to the domain
+
         
         assert edomain in accemails   #Hopefully he has email which is verified    
         
@@ -132,6 +155,7 @@ def tokens():
         
         assert len(data["user"]["email"])<40 and type(data["user"]["email"])==str
         assert type(data["user"]["state"])==str and len(data["user"]["state"])<=40
+        assert type(data["user"]["password"])==str and len(data["user"]["password"])==19
     ###################################### Add captcha ################################################    
     ###################################### Add captcha ###############################################   
         x=data["user"]["email"].split("@")      #Seperating the username from domain
@@ -161,7 +185,7 @@ def tokens():
                 assert fire["user"]["password"]==tes.hexdigest() #Fire dictionary stores the user data   
                 a=token_hex(4)
                 b=token_hex(4)
-                c=+str(a)+str(round(time.time()))+str(b)
+                c=str(a)+str(round(time.time()))+str(b)
                 
                 me=nd()
                 me["auth"]["token"]=c                         #The token that will be linked
@@ -236,6 +260,10 @@ def makepost():
                 me["auth"]["m_user"]=fire["user"]["email"]   
 
                 
+                
+                    
+                         
+
 
                 dab=db["Feed"]
                 dac=dab[fire["user"]["state"]]
@@ -310,7 +338,7 @@ def makesolution():
 
 
 
-            return {"ok":"Done","s_hash":str(me["_id"])}
+            return {"ok":"Done","hash":str(me["_id"])}
     except:
         return {"error":"Already wrote a solution"}
       
@@ -334,7 +362,6 @@ def makecomment():
         assert type(data["s"]["hash"])==str
         assert type(data["auth"]["state"])==str
     except:
-
         return {"error":"Check if every shit is the right data type"}
         ######################Veriying the token###########################################
     try: 
@@ -352,8 +379,9 @@ def makecomment():
             dab=db["solutions"]
             dac=dab[fire["user"]["state"]]
 
-            fire2=dac.find_one({ObjectId(data["s"]["hash"])},
-                               {"_id":0,"s.state":1,"s.election circles":1,"s.nation":1})                                                        
+            fire2=dac.find_one({ObjectId(data["s"]["hash"],)},
+                               {"_id":0,"s.state":1,"s.election circles":1,"s.nation":1
+                               ,"q.hash":1})                                                        
             
             assert fire2["s"]["state"] == fire["user"]["state"]
             assert fire2["s"]["nation"]== fire["user"]["nation"]
@@ -390,7 +418,7 @@ def makecomment():
         return {"OK":"Operation successfull"}
 
     except:         
-        return {"error":"SOmething went wrrrroooong"}
+        return {"error":"Something went wrrrroooong"}
 
 
 
@@ -502,7 +530,176 @@ def feeder():
     except:
         return {"error":"Probably user not found :("}
 
+@app.route('/api/question/<state_hash_ec>',methods=['GET'])
+def question(state_hash_ec):
+    assert type(state_hash_ec) == str  #Use compound index
+    s=state_hash_ec.split('_')
+    assert len(s)==3 
 
+    dab=db["feed"]
+    dac=dab[s[0]]
+
+    fire=dac.find_one({"_id":ObjectId(s[1]),"election circles":s[2]},
+                      {"_id":0,"q.m_question":1,"q.d_question":1,
+                      "q.author":1,"q.time_stamp":1,"q.followers":1,"q.noofanswers":1,
+                      "q.state":1,"q.election circles":1})
+
+    me=nd()
+    me["question"]=fire    
+    dab=db["solutions"]
+    dac=dab[s[0]]
+
+    fire=dac.find({"election circles":s[2],"q.hash":s[1]},
+                  {"_id":1,"s.solution":1,"s.upvotes":1,"s.downvotes":1,
+                  "s.author":1,"s.comments":1,"s.time_stamp":1}).limit(5)
+    count=0
+    for i in fire:
+       count=count+1
+       me["solution_"+str(count)]=i
+       if me["solution_"+str(count)]!=None:
+        me["solution_"+str(count)]["_id"]=str(me["solution_"+str(count)]["_id"])
+        me["solution_"+str(count)]["s"]["hash"]=me["solution_"+str(count)]["_id"]
+        del me["solution_"+str(count)]["_id"]
+
+
+    return me
+
+def cheker(retch):
+    # Checks for token authenticity
+    # data["user"]["token"]
+    # data["auth"]["state"]
+    # data["auth"]["election circles"]
+    assert type(retch["user"]["token"])==str
+    assert type(retch["auth"]["state"])==str
+    assert type(retch["auth"]["election circles"])==str
+    dab=db["Tokens"]
+    dac=dab[retch["auth"]["state"]]   
+    fire=dac.find_one({"auth.token":retch["auth"]["token"]},
+                          {"_id":0,"user.nation":1,"user.email":1,
+                          "user.state":1,"user.election circles":1,
+                          "user.name":1})                                                                                                                              
+    if fire==None:
+            return None
+    else:
+            assert (retch["auth"]["state"])==fire["user"]["state"]
+            assert (retch["auth"]["election circles"]) in fire["user"]["election circles"]
+            return fire
+
+def replier(me):
+    a=flask.make_response(me)
+    a.headers["Server"]="node.js"
+    return a
+
+
+@app.route('/api/getsolutions',methods=['POST'])
+def getsols():
+    try:
+        a=flask.make_response({"error":"alivolivoli  hai"})
+        a.headers["Server"]="node.js"
+        data=flask.request.data
+        data=flask.request.get_json()  
+        assert data["s"]["skip"]<=7 and data["s"]["skip"]==int
+
+        fire=cheker(data)
+        assert fire!=None
+    except:      
+        return a
+    try:
+        assert type(data["q"]["hash"])==str
+        assert data["q"]["election circles"] in fire["user"]["election circles"]
+        assert data["q"]["state"]==fire["user"]["state"]
+         
+        dab=db["solutions"]
+        dac=dab[fire["state"]]
+
+        fire=dac.find({"election circles":data["q"]["election circles"],"q.hash":data["q"]["hash"]},
+                  {"_id":1,"s.solution":1,"s.upvotes":1,"s.downvotes":1,
+                  "s.author":1,"s.comments":1,"s.time_stamp":1}).skip(data["s"]["skip"])
+        me=nd()
+        count=0
+        for i in fire:
+           count=count+1
+           me["solution_"+str(count)]=i
+           if me["solution_"+str(count)]!=None:
+            me["solution_"+str(count)]["_id"]=str(me["solution_"+str(count)]["_id"])
+            me["solution_"+str(count)]["s"]["hash"]=me["solution_"+str(count)]["_id"]
+            del me["solution_"+str(count)]["_id"]
+            
+        a=flask.make_response(me)
+        a.headers["Server"]="node.js"
+        return a
+    except: 
+        a=flask.make_response({"error":"lost in space"})
+        a.headers["Server"]="node.js"
+        return a 
+
+
+@app.route('/api/getcomms',methods=['POST'])
+def getcomms():
+        a=flask.make_response({"error":"alivolivoli  hai"})
+        a.headers["Server"]="node.js"
+        data=flask.request.data
+        data=flask.request.get_json()  
+        #Reqs:
+        # data["user"]["token"]-str
+        # data["auth"]["state"]-str
+        # data["auth"]["election circles"]-str
+        # data["c"]["skip"]--int
+        # data["s"]["hash"] or data["c"]["hash"]--str
+        assert data["c"]["skip"]<=5 and data["c"]["skip"]==int
+        fire=cheker(data)
+        assert fire!=None   
+        dab=db["comments"]       
+        try:
+            assert type(data["s"]["hash"])==str and len(data["s"]["hash"])>5
+            dac=dab[fire["user"]["state"]]
+            fire=dac.find({"s.hash":data["s"]["hash"],"c.election circles":data["auth"]["election circles"]},
+                     {"_id":1,"c.name":1,"c.time_stamp":1,"c.upvotes":1,"c.downvotes":1,
+                     "c.comments":1,"c.election circles":1}).limit(data["c"]["skip"])
+            count=0
+            me=nd()
+            for i in fire:
+              count=count+1
+              me["comment_"+str(count)]=i
+              if me["comment_"+str(count)]!=None:
+                me["comment_"+str(count)]["_id"]=str(me["comment_"+str(count)]["_id"])
+                me["comment_"+str(count)]["c"]["hash"]=me["comment_"+str(count)]["_id"]
+                del me["comment_"+str(count)]["_id"]
+              
+            a=replier(me)
+            return a
+
+
+        except:    
+            assert type(data["c"]["hash"])==str and len(data["c"]["hash"])>5
+            dac=dab[fire["user"]["state"]]
+            fire=dac.find({"s.hash":data["c"]["hash"],"c.election circles":data["auth"]["election circles"]},
+                     {"_id":1,"c.name":1,"c.time_stamp":1,"c.upvotes":1,"c.downvotes":1,
+                     "c.comments":1,"c.election circles":1}).limit(data["c"]["skip"])
+            count=0
+            me=nd()
+            for i in fire:
+              count=count+1
+              me["comment_"+str(count)]=i
+              if me["comment_"+str(count)]!=None:
+                me["comment_"+str(count)]["_id"]=str(me["comment_"+str(count)]["_id"])
+                me["comment_"+str(count)]["c"]["hash"]=me["comment_"+str(count)]["_id"]
+                del me["comment_"+str(count)]["_id"]
+              
+            a=replier(me)
+            return a          
+
+
+
+#Databases required still:
+#  1)Upvotes downvotes user ids     #Hidden and only visible to us.
+#  2)Followers                      #Hidden and only visible to us and the users
+#  3)Meta in user profile           Visble to users
+
+
+       
+
+    
 
 
 
@@ -527,4 +724,4 @@ def feeder():
         
 
 if __name__ == '__main__':
-   app.run(debug=True)
+   app.run()
