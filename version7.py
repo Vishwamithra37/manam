@@ -505,9 +505,9 @@ def feeder():
         return {"error":"Probably user not found :("}
 
 @app.route('/api/question/<state_hash_ec>',methods=['GET'])
-def question(state_hash):
+def question(state_hash_ec):
     assert type(state_hash_ec) == str  #Use compound index
-    s=state_hash.split('_')
+    s=state_hash_ec.split('_')
     assert len(s)==3 
 
 
@@ -524,8 +524,12 @@ def question(state_hash):
     dab=db["solutions"]
     dac=dab[s[0]]
 
-    fire=dac.find_one({"_id":ObjectId(s[1]),"election circles":s[2]},
-                      {"_id":0,"s.m_question":1,"s.d_question":1})
+    fire=dac.find({"_id":ObjectId(s[1]),"election circles":s[2]},
+                      {"_id":0,"s.m_question":1,"s.d_question":1}).limit(5)
+
+    
+    for j in fire:
+
 
 
      

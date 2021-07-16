@@ -7,6 +7,7 @@ from Crypto.Random import get_random_bytes
 from secrets import token_hex
 import time
 from bson.objectid import ObjectId
+import json
 
 
 #EVERYTHING IS UTF-8
@@ -94,7 +95,7 @@ def register():
 
         
         
-        dab=db["ecs"]
+        dab=db["election circles"]
         dac=dab[data["user"]["state"]]
         
 
@@ -337,7 +338,7 @@ def makesolution():
             me["s"]["state"]=fire2["q"]["state"]
             me["s"]["nation"]=fire2["q"]["nation"]
             me["s"]["comments"]="no"
-            me["auth"]["emails"]=["mithravishwa37@gmail.com",fire["user"]["email"]]
+            me["auth"]["users"]=["mithravishwa37@gmail.com",fire["user"]["email"]]
                        
             dac.insert_one(me)
           
@@ -604,7 +605,7 @@ def replier(me):
 @app.route('/api/getsolutions',methods=['POST'])
 def getsols():
     try:
-        a=flask.make_response({"error":"alivolivoli  hai"})
+        a=flask.make_response(json.dumps({"error":"alivolivoli  hai"}))
         a.headers["Server"]="node.js"
         data=flask.request.data
         data=flask.request.get_json()  
@@ -635,7 +636,7 @@ def getsols():
             me["solution_"+str(count)]["s"]["hash"]=me["solution_"+str(count)]["_id"]
             del me["solution_"+str(count)]["_id"]
             
-        a=flask.make_response(me)
+        a=flask.make_response(json.dumps(me))
         a.headers["Server"]="node.js"
         return a
     except: 
@@ -814,6 +815,25 @@ def editprof():
         
             return {"Operation":"successful"}
 
+@app.route('/api/state_list/<nation>',methods=['GET'])
+def stae_list(nation):
+    dab=db["state_list"]
+    dac=dab[nation]
+    r=dac.find()
+    a=[]
+    for j in r:
+        a.append(j["state"])
+    return {"states":a}
+
+@app.route('/api/election_circles/<state>',methods=['GET'])
+def stae_list(state):
+    dab=db["election circles"]
+    dac=dab[state]
+    r=dac.find()
+    a=[]
+    for j in r:
+        a.append(j["election circles"])
+    return {"election circles":a}    
 
 
 #Databases required still:
@@ -849,4 +869,4 @@ def editprof():
         
 
 if __name__ == '__main__':
-   app.run(host='0.0.0.0',port=443,ssl_context=('cert.crt', 'cert.pem'))
+   app.run()
